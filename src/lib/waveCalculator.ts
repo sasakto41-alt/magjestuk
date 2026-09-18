@@ -6,14 +6,49 @@
  * - Занятие не ранее чем за 10 минут и не позднее чем за 120 минут до вещания
  * - 3 слота на организацию в текущих 120 минутах
  * - Интервал между слотами — 20 минут
+ *
+ * Время всегда московское (UTC+3), независимо от часового пояса пользователя.
  */
 
+/** Часовой пояс — Москва (UTC+3, без перевода на летнее время) */
+export const MSK_TZ = 'Europe/Moscow';
+
+/**
+ * Возвращает ТЕКУЩЕЕ московское время как объект Date.
+ */
+export function getMoscowNow(): Date {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: MSK_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '0';
+  const year = parseInt(get('year'), 10);
+  const month = parseInt(get('month'), 10) - 1;
+  const day = parseInt(get('day'), 10);
+  let hour = parseInt(get('hour'), 10);
+  if (hour === 24) hour = 0;
+  const minute = parseInt(get('minute'), 10);
+  const second = parseInt(get('second'), 10);
+
+  const utc = Date.UTC(year, month, day, hour, minute, second, 0);
+  const moscowOffsetMin = 3 * 60;
+  const result = new Date(utc - moscowOffsetMin * 60 * 1000);
+
+  return result;
+}
+
 export interface TimeSlot {
-  /** Время в формате HH:MM */
   time: string;
-  /** Объект Date */
   date: Date;
-  /** Unix timestamp (мс) */
   timestamp: number;
 }
 
@@ -25,11 +60,11 @@ export interface SlotSet {
 }
 
 export type SlotStatus =
-  | 'planned'    // Запланировано
-  | 'asked'      // Спрошено в /dep
-  | 'occupied'   // Занято
-  | 'broadcast'  // Подано /gnews
-  | 'released';  // Отпущено
+  | 'planned'
+  | 'asked'
+  | 'occupied'
+  | 'broadcast'
+  | 'released';
 
 export const SLOT_STATUS_LABELS: Record<SlotStatus, string> = {
   planned: 'Запланировано',
@@ -39,10 +74,6 @@ export const SLOT_STATUS_LABELS: Record<SlotStatus, string> = {
   released: 'Отпущено',
 };
 
-/**
- * Округляет дату вверх до ближайшей 10-минутной отметки (00, 10, 20, 30, 40, 50).
- * Если дата уже точно на 10-минутной отметке — возвращает её же.
- */
 function roundUpTo10Minutes(date: Date): Date {
   const result = new Date(date);
   result.setSeconds(0, 0);
@@ -60,19 +91,13 @@ function roundUpTo10Minutes(date: Date): Date {
   return result;
 }
 
-/**
- * Форматирует Date в строку HH:MM (24-часовой формат).
- */
 export function formatTime(date: Date): string {
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
   return `${hours}:${minutes}`;
 }
 
-/**
- * Возвращает все 10-минутные слоты в окне [now + 10мин, now + 120мин].
- */
-export function getAvailableSlots(now: Date = new Date()): TimeSlot[] {
+export function getAvailableSlots(now: Date = getMoscowNow()): TimeSlot[] {
   const minTime = new Date(now.getTime() + 10 * 60 * 1000);
   const maxTime = new Date(now.getTime() + 120 * 60 * 1000);
 
@@ -96,20 +121,14 @@ export function getAvailableSlots(now: Date = new Date()): TimeSlot[] {
   return slots;
 }
 
-/**
- * Генерирует валидные наборы по 3 слота с интервалом 20 минут.
- * Возвращает до 3 наборов (приоритет — наборы, начинающиеся с :00, :20, :40).
- */
-export function getRecommendedSets(now: Date = new Date()): SlotSet[] {
+export function getRecommendedSets(now: Date = getMoscowNow()): SlotSet[] {
   const slots = getAvailableSlots(now);
 
-  // Карта: timestamp -> slot для быстрого поиска
   const slotByTimestamp = new Map<number, TimeSlot>();
   for (const s of slots) slotByTimestamp.set(s.timestamp, s);
 
   const TWENTY_MIN = 20 * 60 * 1000;
 
-  // Собираем все валидные тройки с интервалом 20 минут
   const allSets: SlotSet[] = [];
   for (let i = 0; i < slots.length; i++) {
     const s1 = slots[i];
@@ -127,7 +146,6 @@ export function getRecommendedSets(now: Date = new Date()): SlotSet[] {
     });
   }
 
-  // Приоритет: наборы с началом в :00 минуты (круглый час), затем :20, затем :40
   const priority = (s: SlotSet) => {
     const m = s.slots[0].date.getMinutes();
     if (m === 0) return 0;
@@ -143,7 +161,6 @@ export function getRecommendedSets(now: Date = new Date()): SlotSet[] {
     return a.slots[0].timestamp - b.slots[0].timestamp;
   });
 
-  // Берём первые 3 непересекающихся набора
   const result: SlotSet[] = [];
   const usedTimestamps = new Set<number>();
   for (const set of allSets) {
@@ -155,7 +172,6 @@ export function getRecommendedSets(now: Date = new Date()): SlotSet[] {
     if (result.length >= 3) break;
   }
 
-  // Если не набрали 3 непересекающихся — добираем любыми
   if (result.length < 3) {
     for (const set of allSets) {
       if (!result.includes(set)) {
@@ -168,9 +184,6 @@ export function getRecommendedSets(now: Date = new Date()): SlotSet[] {
   return result.slice(0, 3);
 }
 
-/**
- * Форматирует обратный отсчёт до targetTimestamp.
- */
 export function formatCountdown(targetTimestamp: number, now: number = Date.now()): string {
   const diff = targetTimestamp - now;
   if (diff <= 0) return '00:00';
@@ -187,10 +200,7 @@ export function formatCountdown(targetTimestamp: number, now: number = Date.now(
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
-/**
- * Время до следующего 10-минутного слота вещания.
- */
-export function getNextBroadcastSlot(now: Date = new Date()): TimeSlot {
+export function getNextBroadcastSlot(now: Date = getMoscowNow()): TimeSlot {
   const result = new Date(now);
   result.setSeconds(0, 0);
   const minutes = result.getMinutes();
@@ -208,9 +218,6 @@ export function getNextBroadcastSlot(now: Date = new Date()): TimeSlot {
   };
 }
 
-/**
- * Текущая фаза процесса.
- */
 export type Phase = 'idle' | 'asking' | 'waiting' | 'occupied' | 'broadcast' | 'released';
 
 export const PHASE_LABELS: Record<Phase, string> = {
