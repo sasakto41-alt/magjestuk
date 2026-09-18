@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   output: "export",
   // Если репозиторий называется не <username>.github.io, нужно указать путь
   // например basePath: "/my-repo" для репозитория my-repo
-  // basePath: "/your-repo-name",
+  basePath: "/magjestuk",
   // Добавляем trailing slash для совместимости с GitHub Pages
   trailingSlash: true,
   // Отключаем оптимизацию изображений (не работает в static export)
