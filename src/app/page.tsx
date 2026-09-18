@@ -1225,7 +1225,7 @@ function RulesReference() {
 // ============================================================
 
 export default function Home() {
-  const [now, setNow] = React.useState<Date>(new Date());
+  const [now, setNow] = React.useState<Date>(() => getMoscowNow());
   const [faction, setFaction] = React.useState<string>('SANG');
   const [selectedSetId, setSelectedSetId] = React.useState<string | null>(null);
   const [slotStatuses, setSlotStatuses] = React.useState<SlotStatus[]>(['planned', 'planned', 'planned']);
