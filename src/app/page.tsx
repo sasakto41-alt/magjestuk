@@ -1237,7 +1237,7 @@ export default function Home() {
 
   // Тикер — обновляем время каждую секунду
   React.useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 1000);
+    const interval = setInterval(() => setNow(getMoscowNow()), 1000);
     return () => clearInterval(interval);
   }, []);
 
