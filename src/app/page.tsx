@@ -35,12 +35,13 @@ import {
 import {
   getRecommendedSets,
   getNextBroadcastSlot,
+  getMoscowNow,
   formatCountdown,
   SLOT_STATUS_LABELS,
   type SlotSet,
   type SlotStatus,
   type TimeSlot,
-} from '@/lib/waveCalculator';
+} from '@/lib/waveCalculator';      
 import {
   GNEWS_TEMPLATES,
   buildAskCommand,
